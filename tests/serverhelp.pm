@@ -51,6 +51,7 @@ use vars qw(
     servername_str
     servername_canon
     server_pidfilename
+    server_portfilename
     server_logfilename
     server_cmdfilename
     server_inputfilename
@@ -148,6 +149,15 @@ sub servername_canon {
 sub server_pidfilename {
     my ($proto, $ipver, $idnum) = @_;
     my $trailer = '_server.pid';
+    return '.'. servername_canon($proto, $ipver, $idnum) ."$trailer";
+}
+
+#***************************************************************************
+# Return file name for server port file.
+#
+sub server_portfilename {
+    my ($proto, $ipver, $idnum) = @_;
+    my $trailer = '_server.port';
     return '.'. servername_canon($proto, $ipver, $idnum) ."$trailer";
 }
 

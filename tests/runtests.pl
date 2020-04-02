@@ -78,6 +78,7 @@ use serverhelp qw(
     servername_str
     servername_canon
     server_pidfilename
+    server_portfilename
     server_logfilename
     );
 
@@ -327,6 +328,7 @@ my $run_event_based; # run curl with --test-event to test the event API
 my %run;          # running server
 my %doesntrun;    # servers that don't work, identified by pidfile
 my %serverpidfile;# all server pid file names, identified by server id
+my %serverportfile;# all server port file names, identified by server id
 my %runcert;      # cert file currently in use by an ssl running server
 
 # torture test variables
@@ -400,7 +402,8 @@ delete $ENV{'SSL_CERT_PATH'} if($ENV{'SSL_CERT_PATH'});
 delete $ENV{'CURL_CA_BUNDLE'} if($ENV{'CURL_CA_BUNDLE'});
 
 #######################################################################
-# Load serverpidfile hash with pidfile names for all possible servers.
+# Load serverpidfile and serverportfile hashes with file names for all
+# possible servers.
 #
 sub init_serverpidfile_hash {
   for my $proto (('ftp', 'http', 'imap', 'pop3', 'smtp', 'http/2')) {
@@ -410,6 +413,8 @@ sub init_serverpidfile_hash {
           my $serv = servername_id("$proto$ssl", $ipvnum, $idnum);
           my $pidf = server_pidfilename("$proto$ssl", $ipvnum, $idnum);
           $serverpidfile{$serv} = $pidf;
+          my $portf = server_portfilename("$proto$ssl", $ipvnum, $idnum);
+          $serverportfile{$serv} = $portf;
         }
       }
     }
@@ -421,6 +426,8 @@ sub init_serverpidfile_hash {
         my $serv = servername_id($proto, $ipvnum, $idnum);
         my $pidf = server_pidfilename($proto, $ipvnum, $idnum);
         $serverpidfile{$serv} = $pidf;
+        my $portf = server_portfilename($proto, $ipvnum, $idnum);
+        $serverportfile{$serv} = $portf;
       }
     }
   }
@@ -429,6 +436,8 @@ sub init_serverpidfile_hash {
       my $serv = servername_id("$proto$ssl", "unix", 1);
       my $pidf = server_pidfilename("$proto$ssl", "unix", 1);
       $serverpidfile{$serv} = $pidf;
+      my $portf = server_portfilename("$proto$ssl", "unix", 1);
+      $serverportfile{$serv} = $portf;
     }
   }
 }
@@ -2176,11 +2185,13 @@ sub runmqttserver {
     my $server;
     my $srvrname;
     my $pidfile;
+    my $portfile;
     my $logfile;
     my $flags = "";
 
     $server = servername_id($proto, $ipvnum, $idnum);
     $pidfile = $serverpidfile{$server};
+    $portfile = $serverportfile{$server};
 
     # don't retry if the server doesn't work
     if ($doesntrun{$pidfile}) {
@@ -2197,10 +2208,11 @@ sub runmqttserver {
 
     $logfile = server_logfilename($LOGDIR, $proto, $ipvnum, $idnum);
 
-    # start our socks server, get commands from the FTP cmd file
+    # start our MQTT server - on a random port!
     my $cmd="server/mqttd".exe_ext('SRV').
-        " --port $port ".
+        " --port 0 ".
         " --pidfile $pidfile".
+        " --portfile $portfile".
         " --config $FTPDCMD";
     my ($sockspid, $pid2) = startnew($cmd, $pidfile, 30, 0);
 
@@ -2212,8 +2224,10 @@ sub runmqttserver {
         return (0,0);
     }
 
+    $MQTTPORT = pidfromfile($portfile);
+
     if($verbose) {
-        logmsg "RUN: $srvrname server is now running PID $pid2\n";
+        logmsg "RUN: $srvrname server is now running PID $pid2 on PORT $MQTTPORT\n";
     }
 
     return ($pid2, $sockspid);
@@ -5428,7 +5442,6 @@ $DICTPORT        = $base++; # DICT port
 $SMBPORT         = $base++; # SMB port
 $SMBSPORT        = $base++; # SMBS port
 $NEGTELNETPORT   = $base++; # TELNET port with negotiation
-$MQTTPORT        = $base++; # MQTT port
 $HTTPUNIXPATH    = 'http.sock'; # HTTP server Unix domain socket path
 
 $maxport         = $base-1; # updated base port number

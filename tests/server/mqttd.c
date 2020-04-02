@@ -778,7 +778,9 @@ int main(int argc, char *argv[])
   curl_socket_t sock = CURL_SOCKET_BAD;
   curl_socket_t msgsock = CURL_SOCKET_BAD;
   int wrotepidfile = 0;
+  int wroteportfile = 0;
   const char *pidname = ".mqttd.pid";
+  const char *portname = ".mqttd.port";
   bool juggle_again;
   int error;
   int arg = 1;
@@ -798,6 +800,11 @@ int main(int argc, char *argv[])
       arg++;
       if(argc>arg)
         pidname = argv[arg++];
+    }
+    else if(!strcmp("--portfile", argv[arg])) {
+      arg++;
+      if(argc>arg)
+        portname = argv[arg++];
     }
     else if(!strcmp("--config", argv[arg])) {
       arg++;
@@ -876,14 +883,14 @@ int main(int argc, char *argv[])
     error = SOCKERRNO;
     logmsg("Error creating socket: (%d) %s",
            error, strerror(error));
-    goto socks5_cleanup;
+    goto mqttd_cleanup;
   }
 
   {
     /* passive daemon style */
     sock = sockdaemon(sock, &port);
     if(CURL_SOCKET_BAD == sock) {
-      goto socks5_cleanup;
+      goto mqttd_cleanup;
     }
     msgsock = CURL_SOCKET_BAD; /* no stream socket yet */
   }
@@ -893,14 +900,19 @@ int main(int argc, char *argv[])
 
   wrotepidfile = write_pidfile(pidname);
   if(!wrotepidfile) {
-    goto socks5_cleanup;
+    goto mqttd_cleanup;
+  }
+
+  wroteportfile = write_portfile(portname, (int)port);
+  if(!wroteportfile) {
+    goto mqttd_cleanup;
   }
 
   do {
     juggle_again = incoming(sock);
   } while(juggle_again);
 
-socks5_cleanup:
+mqttd_cleanup:
 
   if((msgsock != sock) && (msgsock != CURL_SOCKET_BAD))
     sclose(msgsock);
